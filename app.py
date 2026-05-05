@@ -1,20 +1,41 @@
 from flask import Flask, request, jsonify
 import mysql.connector
 from mysql.connector import Error
+from dotenv import load_dotenv
+from urllib.parse import urlparse
 import os
+
+load_dotenv()
 
 app = Flask(__name__)
 
 # --- Database Connection ---
 def get_db():
     try:
-        # Railway ke environment variables use kar raha hai
+        host = os.environ.get('DB_HOST')
+        port = os.environ.get('DB_PORT')
+        user = os.environ.get('DB_USER')
+        password = os.environ.get('DB_PASSWORD')
+        database = os.environ.get('DB_NAME')
+
+        if host and host.startswith('mysql://'):
+            parsed = urlparse(host)
+            host = parsed.hostname
+            if parsed.port:
+                port = parsed.port
+            if parsed.username and not user:
+                user = parsed.username
+            if parsed.password and not password:
+                password = parsed.password
+            if parsed.path and parsed.path != '/':
+                database = parsed.path.lstrip('/')
+
         conn = mysql.connector.connect(
-            host=os.environ.get('DB_HOST'),
-            user=os.environ.get('DB_USER'),
-            password=os.environ.get('DB_PASSWORD'),
-            database=os.environ.get('DB_NAME'),
-            port=os.environ.get('DB_PORT', 3306)
+            host=host,
+            user=user,
+            password=password,
+            database=database,
+            port=int(port) if port else 3306
         )
         return conn
     except Error as e:
