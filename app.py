@@ -44,8 +44,11 @@ def get_db():
 
 # --- Initialize Tables ---
 def init_db():
-    conn = get_db()
-    if conn:
+    try:
+        conn = get_db()
+        if not conn:
+            print("⚠️ Database unavailable at startup — skipping table initialization.")
+            return
         try:
             cursor = conn.cursor()
             # Users Table
@@ -72,6 +75,8 @@ def init_db():
         finally:
             cursor.close()
             conn.close()
+    except Exception as e:
+        print(f"⚠️ Database initialization failed — app will continue without DB: {e}")
 
 # Start up table creation
 init_db()
