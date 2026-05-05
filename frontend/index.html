@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto Driven - Team Task Manager</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        body { background: #f4f7f6; color: #333; }
+
+        /* Auth Screen */
+        .auth-container { height: 100vh; display: flex; justify-content: center; align-items: center; background: #1a1c23; }
+        .auth-box { text-align: center; background: #2d3748; padding: 40px; border-radius: 20px; color: white; width: 450px; }
+        select { width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: none; background: #4a5568; color: white; }
+
+        /* Dashboard Layout */
+        #dashboardWrapper { display: none; min-height: 100vh; }
+        .sidebar { width: 280px; background: #1a1c23; color: white; padding: 30px 20px; position: fixed; height: 100vh; display: flex; flex-direction: column; }
+        .logo { font-size: 1.3rem; font-weight: bold; color: #4f46e5; margin-bottom: 40px; text-transform: uppercase; }
+        .nav-item { padding: 12px 15px; cursor: pointer; border-radius: 8px; margin-bottom: 8px; color: #a0aec0; }
+        .nav-item.active { background: #4f46e5; color: white; }
+
+        .main-content { margin-left: 280px; padding: 40px; width: calc(100% - 280px); }
+        .admin-only { display: none; } /* Admin features hidden by default */
+
+        /* Cards & Stats */
+        .stats { display: flex; gap: 20px; margin-bottom: 30px; }
+        .stat-item { background: white; padding: 20px; border-radius: 12px; flex: 1; border-left: 5px solid #4f46e5; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+
+        /* Task List */
+        .task-card { background: white; padding: 20px; margin-bottom: 15px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .status-badge { padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+        .status-pending { background: #fff3cd; color: #856404; }
+        .status-completed { background: #d4edda; color: #155724; }
+
+        /* Modals */
+        .modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); backdrop-filter: blur(5px); }
+        .modal-content { background: white; margin: 8% auto; padding: 30px; width: 450px; border-radius: 20px; position: relative; }
+        input, textarea, select.modal-select { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; }
+        .btn-confirm { padding: 14px; background: #4f46e5; color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: 700; width: 100%; }
+        .btn-logout { background: #f56565; color: white; border: none; padding: 12px; border-radius: 10px; cursor: pointer; margin-top: auto; }
+    </style>
+</head>
+<body>
+    
+
+    <!-- AUTH SCREEN -->
+    <div id="authScreen" class="auth-container">
+        <div class="auth-box">
+            <h1>🏎️ Auto Driven</h1>
+            <p>Team Task Manager</p>
+            <div id="authForms">
+                <!-- Toggle between Login/Signup simulated here -->
+                <button class="btn-confirm" onclick="openModal('signupModal')" style="margin-top:20px;">Get Started / Sign Up</button>
+                <button class="btn-confirm" onclick="openModal('loginModal')" style="background: #4a5568; margin-top:10px;">Login</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div id="dashboardWrapper">
+        <nav class="sidebar">
+            <div class="logo">🏎️ Auto Driven</div>
+            <ul>
+                <li class="nav-item active">Dashboard</li>
+                <li class="nav-item admin-only" onclick="openModal('taskModal')">Assign New Task</li>
+                <li class="nav-item">My Tasks</li>
+                <li class="nav-item">Settings</li>
+            </ul>
+            <button class="btn-logout" onclick="logout()">Logout</button>
+        </nav>
+        <main class="main-content">
+            <header>
+                <h1 id="welcomeText">Welcome!</h1>
+                <p id="userRoleTag" style="color: #4f46e5; font-weight: bold;"></p>
+            </header>
+
+            <section class="stats" style="margin-top: 25px;">
+                <div class="stat-item"><h3 id="totalTasks">0</h3><p>Total Tasks</p></div>
+                <div class="stat-item"><h3 id="pendingTasks">0</h3><p>Pending</p></div>
+                <div class="stat-item" style="border-left-color: #f56565;"><h3>0</h3><p>Overdue</p></div>
+            </section>
+
+            <section class="task-display">
+                <h3>Task Board</h3>
+                <div id="taskListView" style="margin-top: 20px;">
+                    <!-- Tasks appear here -->
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- MODALS -->
+    <div id="signupModal" class="modal">
+        <div class="modal-content">
+            <h2>Create Account</h2>
+            <form id="signupForm">
+                <input type="text" id="regName" placeholder="Full Name" required>
+                <input type="email" id="regEmail" placeholder="Email" required>
+                <input type="password" id="regPass" placeholder="Password" required>
+                <select id="regRole">
+                    <option value="Member">Team Member</option>
+                    <option value="Admin">Admin / Manager</option>
+                </select>
+                <button type="submit" class="btn-confirm">Register</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="loginModal" class="modal">
+        <div class="modal-content">
+            <h2>Login</h2>
+            <form id="loginForm">
+                <input type="email" id="loginEmail" placeholder="Email" required>
+                <input type="password" id="loginPass" placeholder="Password" required>
+                <button type="submit" class="btn-confirm">Login</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="taskModal" class="modal">
+        <div class="modal-content">
+            <h2>Assign New Task</h2>
+            <form id="taskForm">
+                <input type="text" id="tTitle" placeholder="Task Title (e.g., Edit Seltos Review)" required>
+                <textarea id="tDesc" placeholder="Task Details..." rows="3"></textarea>
+                <input type="text" id="tAssign" placeholder="Assign to (Member Name)" required>
+                <button type="submit" class="btn-confirm">Create & Assign</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // --- CORE LOGIC ---
+        let tasks = [];
+
+        function openModal(id) { document.getElementById(id).style.display = 'block'; }
+        function closeModal(id) { document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); }
+
+        // SIGNUP
+        document.getElementById('signupForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const user = {
+                name: document.getElementById('regName').value,
+                email: document.getElementById('regEmail').value,
+                pass: document.getElementById('regPass').value,
+                role: document.getElementById('regRole').value
+            };
+            localStorage.setItem('userDB', JSON.stringify(user));
+            alert("Signup Successful! Please Login.");
+            closeModal();
+        });
+
+        // LOGIN (Role-Based Access Control)
+        document.getElementById('loginForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const savedUser = JSON.parse(localStorage.getItem('userDB'));
+            const email = document.getElementById('loginEmail').value;
+            const pass = document.getElementById('loginPass').value;
+
+            if(savedUser && email === savedUser.email && pass === savedUser.pass) {
+                // UI update based on Role
+                document.getElementById('welcomeText').innerText = "Hello, " + savedUser.name;
+                document.getElementById('userRoleTag').innerText = "Role: " + savedUser.role;
+                
+                if(savedUser.role === 'Admin') {
+                    document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
+                }
+
+                document.getElementById('authScreen').style.display = 'none';
+                document.getElementById('dashboardWrapper').style.display = 'flex';
+                closeModal();
+            } else {
+                alert("Invalid Credentials!");
+            }
+        });
+
+        // TASK CREATION (Admin Only)
+        document.getElementById('taskForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const task = {
+                title: document.getElementById('tTitle').value,
+                desc: document.getElementById('tDesc').value,
+                assignee: document.getElementById('tAssign').value,
+                status: 'Pending'
+            };
+            tasks.push(task);
+            renderTasks();
+            closeModal();
+            e.target.reset();
+        });
+
+        function renderTasks() {
+            const container = document.getElementById('taskListView');
+            container.innerHTML = '';
+            tasks.forEach((t, index) => {
+                const div = document.createElement('div');
+                div.className = 'task-card';
+                div.innerHTML = `
+                    <div>
+                        <strong>${t.title}</strong><br>
+                        <small>Assignee: ${t.assignee}</small>
+                    </div>
+                    <div>
+                        <span class="status-badge ${t.status === 'Pending' ? 'status-pending' : 'status-completed'}">${t.status}</span>
+                        <button onclick="toggleTask(${index})" style="margin-left:10px; cursor:pointer;">Update</button>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+            updateStats();
+        }
+
+        function toggleTask(index) {
+            tasks[index].status = tasks[index].status === 'Pending' ? 'Completed' : 'Pending';
+            renderTasks();
+        }
+
+        function updateStats() {
+            document.getElementById('totalTasks').innerText = tasks.length;
+            document.getElementById('pendingTasks').innerText = tasks.filter(t => t.status === 'Pending').length;
+        }
+
+        function logout() { location.reload(); }
+    </script>
+</body>
+</html>
