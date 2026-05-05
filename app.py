@@ -8,51 +8,50 @@ load_dotenv()
 
 app = Flask(__name__)
 
-# Database connection function
+# Database connection
 def get_db():
     try:
-        conn = mysql.connector.connect(
+        return mysql.connector.connect(
             host=os.environ.get('DB_HOST'),
             user=os.environ.get('DB_USER'),
             password=os.environ.get('DB_PASSWORD'),
             database=os.environ.get('DB_NAME'),
             port=int(os.environ.get('DB_PORT', 3306))
         )
-        return conn
     except Error as e:
         print(f"DB Error: {e}")
         return None
 
-# Initialize tables on first request
-_db_initialized = False
+# Initialize DB tables once
+_initialized = False
 
-def ensure_db():
-    global _db_initialized
-    if _db_initialized:
+def init_tables():
+    global _initialized
+    if _initialized:
         return
-    _db_initialized = True
-
+    _initialized = True
+    
     conn = get_db()
     if not conn:
-        print("Database not available")
+        print("Database not available at startup")
         return
-
+    
     try:
         cursor = conn.cursor()
         cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            name VARCHAR(255),
-            email VARCHAR(255) UNIQUE,
-            password VARCHAR(255)
-        )
+            CREATE TABLE IF NOT EXISTS users (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255),
+                email VARCHAR(255) UNIQUE,
+                password VARCHAR(255)
+            )
         """)
         cursor.execute("""
-        CREATE TABLE IF NOT EXISTS tasks (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            title VARCHAR(255),
-            status VARCHAR(50) DEFAULT 'pending'
-        )
+            CREATE TABLE IF NOT EXISTS tasks (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                title VARCHAR(255),
+                status VARCHAR(50) DEFAULT 'pending'
+            )
         """)
         conn.commit()
         print("Tables initialized")
@@ -62,19 +61,24 @@ def ensure_db():
         cursor.close()
         conn.close()
 
+# Health check endpoint
+@app.route("/health")
+def health():
+    return jsonify({"status": "ok"}), 200
+
 @app.route("/")
 def home():
-    ensure_db()
+    init_tables()
     return "🚀 Auto Driven Task Manager is Live on Railway with MySQL!"
 
 @app.route("/signup", methods=["POST"])
 def signup():
-    ensure_db()
+    init_tables()
     data = request.json
     conn = get_db()
     if not conn:
         return jsonify({"error": "DB connection failed"}), 500
-
+    
     try:
         cursor = conn.cursor()
         cursor.execute(
@@ -91,11 +95,11 @@ def signup():
 
 @app.route("/tasks", methods=["GET"])
 def get_tasks():
-    ensure_db()
+    init_tables()
     conn = get_db()
     if not conn:
         return jsonify({"error": "DB connection failed"}), 500
-
+    
     try:
         cursor = conn.cursor(dictionary=True)
         cursor.execute("SELECT * FROM tasks")
@@ -107,12 +111,12 @@ def get_tasks():
 
 @app.route("/task", methods=["POST"])
 def create_task():
-    ensure_db()
+    init_tables()
     data = request.json
     conn = get_db()
     if not conn:
         return jsonify({"error": "DB connection failed"}), 500
-
+    
     try:
         cursor = conn.cursor()
         cursor.execute(
@@ -124,3 +128,7 @@ def create_task():
     finally:
         cursor.close()
         conn.close()
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port, debug=False)
