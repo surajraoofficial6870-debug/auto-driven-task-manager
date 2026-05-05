@@ -128,8 +128,3 @@ def create_task():
         return jsonify({"msg": "Task added"}), 201
     finally:
         conn.close()
-
-if __name__ == "__main__":
-    # Railway automatically assigns a port
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
