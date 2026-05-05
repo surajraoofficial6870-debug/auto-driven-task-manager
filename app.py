@@ -2,95 +2,79 @@ from flask import Flask, request, jsonify
 import mysql.connector
 from mysql.connector import Error
 from dotenv import load_dotenv
-from urllib.parse import urlparse
 import os
 
 load_dotenv()
 
 app = Flask(__name__)
 
-# --- Database Connection ---
+# Database connection function
 def get_db():
     try:
-        host = os.environ.get('DB_HOST')
-        port = os.environ.get('DB_PORT')
-        user = os.environ.get('DB_USER')
-        password = os.environ.get('DB_PASSWORD')
-        database = os.environ.get('DB_NAME')
-
-        if host and host.startswith('mysql://'):
-            parsed = urlparse(host)
-            host = parsed.hostname
-            if parsed.port:
-                port = parsed.port
-            if parsed.username and not user:
-                user = parsed.username
-            if parsed.password and not password:
-                password = parsed.password
-            if parsed.path and parsed.path != '/':
-                database = parsed.path.lstrip('/')
-
         conn = mysql.connector.connect(
-            host=host,
-            user=user,
-            password=password,
-            database=database,
-            port=int(port) if port else 3306
+            host=os.environ.get('DB_HOST'),
+            user=os.environ.get('DB_USER'),
+            password=os.environ.get('DB_PASSWORD'),
+            database=os.environ.get('DB_NAME'),
+            port=int(os.environ.get('DB_PORT', 3306))
         )
         return conn
     except Error as e:
-        print(f"❌ Database Connection Error: {e}")
+        print(f"DB Error: {e}")
         return None
 
-# --- Initialize Tables ---
-def init_db():
-    try:
-        conn = get_db()
-        if not conn:
-            print("⚠️ Database unavailable at startup — skipping table initialization.")
-            return
-        try:
-            cursor = conn.cursor()
-            # Users Table
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(255),
-                email VARCHAR(255) UNIQUE,
-                password VARCHAR(255)
-            )
-            """)
-            # Tasks Table
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS tasks (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                title VARCHAR(255),
-                status VARCHAR(50) DEFAULT 'pending'
-            )
-            """)
-            conn.commit()
-            print("✅ Tables initialized successfully!")
-        except Error as e:
-            print(f"❌ Table Creation Error: {e}")
-        finally:
-            cursor.close()
-            conn.close()
-    except Exception as e:
-        print(f"⚠️ Database initialization failed — app will continue without DB: {e}")
+# Initialize tables on first request
+_db_initialized = False
 
-# Start up table creation
-init_db()
+def ensure_db():
+    global _db_initialized
+    if _db_initialized:
+        return
+    _db_initialized = True
+
+    conn = get_db()
+    if not conn:
+        print("Database not available")
+        return
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(255),
+            email VARCHAR(255) UNIQUE,
+            password VARCHAR(255)
+        )
+        """)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS tasks (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            title VARCHAR(255),
+            status VARCHAR(50) DEFAULT 'pending'
+        )
+        """)
+        conn.commit()
+        print("Tables initialized")
+    except Exception as e:
+        print(f"Table init error: {e}")
+    finally:
+        cursor.close()
+        conn.close()
 
 @app.route("/")
 def home():
+    ensure_db()
     return "🚀 Auto Driven Task Manager is Live on Railway with MySQL!"
 
 @app.route("/signup", methods=["POST"])
 def signup():
+    ensure_db()
     data = request.json
     conn = get_db()
-    if not conn: return jsonify({"error": "DB connection failed"}), 500
-    
+    if not conn:
+        return jsonify({"error": "DB connection failed"}), 500
+
     try:
         cursor = conn.cursor()
         cursor.execute(
@@ -98,31 +82,37 @@ def signup():
             (data["name"], data["email"], data["password"])
         )
         conn.commit()
-        return jsonify({"msg": "User created successfully"}), 201
+        return jsonify({"msg": "User created"}), 201
     except Error as e:
         return jsonify({"error": str(e)}), 400
     finally:
+        cursor.close()
         conn.close()
 
 @app.route("/tasks", methods=["GET"])
 def get_tasks():
+    ensure_db()
     conn = get_db()
-    if not conn: return jsonify({"error": "DB connection failed"}), 500
-    
+    if not conn:
+        return jsonify({"error": "DB connection failed"}), 500
+
     try:
         cursor = conn.cursor(dictionary=True)
         cursor.execute("SELECT * FROM tasks")
         tasks = cursor.fetchall()
         return jsonify(tasks)
     finally:
+        cursor.close()
         conn.close()
 
 @app.route("/task", methods=["POST"])
 def create_task():
+    ensure_db()
     data = request.json
     conn = get_db()
-    if not conn: return jsonify({"error": "DB connection failed"}), 500
-    
+    if not conn:
+        return jsonify({"error": "DB connection failed"}), 500
+
     try:
         cursor = conn.cursor()
         cursor.execute(
@@ -132,4 +122,5 @@ def create_task():
         conn.commit()
         return jsonify({"msg": "Task added"}), 201
     finally:
+        cursor.close()
         conn.close()
