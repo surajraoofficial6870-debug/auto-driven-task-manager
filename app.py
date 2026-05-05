@@ -1,70 +1,85 @@
 from flask import Flask, request, jsonify
-import sqlite3
+import mysql.connector
+from mysql.connector import Error
 import os
 
 app = Flask(__name__)
 
+# --- STEP 2: MySQL Connection Logic ---
 def get_db():
-    # Railway pe /tmp/ use karna safer hota hai temporary testing ke liye
-    conn = sqlite3.connect("task.db")
-    conn.row_factory = sqlite3.Row
-    return conn
+    try:
+        # Ye variables Railway ke "Variables" tab (image_00969f.png) se matching hain
+        conn = mysql.connector.connect(
+            host=os.environ.get('DB_HOST'),
+            user=os.environ.get('DB_USER'),
+            password=os.environ.get('DB_PASSWORD'),
+            database=os.environ.get('DB_NAME'),
+            port=os.environ.get('DB_PORT')
+        )
+        return conn
+    except Error as e:
+        print(f"Database Connection Error: {e}")
+        return None
 
 def init_db():
-    with app.app_context():
-        conn = get_db()
+    conn = get_db()
+    if conn:
         cursor = conn.cursor()
+        # MySQL Syntax: AUTO_INCREMENT (SQLite se thoda alag)
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT, email TEXT, password TEXT
-        )""")
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(255),
+            email VARCHAR(255),
+            password VARCHAR(255)
+        )
+        """)
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS tasks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT, status TEXT
-        )""")
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            title VARCHAR(255),
+            status VARCHAR(50)
+        )
+        """)
         conn.commit()
+        cursor.close()
         conn.close()
 
-# Database initialize
+# Startup par table create karega
 init_db()
 
 @app.route("/")
 def home():
-    return "🚀 Auto Driven Task Manager is Live!"
+    return "🚀 Auto Driven Task Manager is Live with MySQL!"
 
 @app.route("/signup", methods=["POST"])
 def signup():
     data = request.json
     conn = get_db()
+    if not conn: return jsonify({"error": "DB connection failed"}), 500
+    
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO users (name,email,password) VALUES (?,?,?)",
-                   (data["name"], data["email"], data["password"]))
+    # MySQL mein %s use hota hai placeholder ke liye
+    cursor.execute(
+        "INSERT INTO users (name, email, password) VALUES (%s, %s, %s)",
+        (data["name"], data["email"], data["password"])
+    )
     conn.commit()
     conn.close()
     return jsonify({"msg": "User created"})
 
-@app.route("/task", methods=["POST"])
-def create_task():
-    data = request.json
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO tasks (title,status) VALUES (?,?)",
-                   (data["title"], "pending"))
-    conn.commit()
-    conn.close()
-    return jsonify({"msg": "Task added"})
-
 @app.route("/tasks", methods=["GET"])
 def get_tasks():
     conn = get_db()
-    cursor = conn.cursor()
+    if not conn: return jsonify({"error": "DB connection failed"}), 500
+    
+    cursor = conn.cursor(dictionary=True) # dictionary=True taaki JSON output sahi mile
     cursor.execute("SELECT * FROM tasks")
     tasks = cursor.fetchall()
     conn.close()
-    return jsonify([dict(row) for row in tasks])
+    return jsonify(tasks)
 
+# Railway ke liye port binding
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
